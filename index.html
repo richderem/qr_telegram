@@ -20,15 +20,6 @@
         const codeReader = new ZXing.BrowserMultiFormatReader();
         let activeStream = null;
 
-        // Supported formats
-        const formats = [
-            ZXing.BarcodeFormat.QR_CODE,
-            ZXing.BarcodeFormat.CODE_128,
-            ZXing.BarcodeFormat.EAN_13,
-            ZXing.BarcodeFormat.UPC_A,
-            ZXing.BarcodeFormat.CODE_39
-        ];
-
         async function startScanning() {
             try {
                 // Stop previous session
@@ -39,8 +30,9 @@
                 // Get camera stream
                 activeStream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        facingMode: 'environment',
-                        focusMode: 'continuous'
+                        facingMode: 'environment', // Use rear camera
+                        width: { ideal: 1280 },    // Force higher resolution
+                        height: { ideal: 720 }
                     }
                 });
 
@@ -49,7 +41,7 @@
 
                 // Start decoding
                 scanButton.textContent = 'Stop Scanning';
-                console.log('ZXing version:', ZXing.VERSION);
+                console.log('ZXing initialized');
 
                 codeReader.decodeFromVideoElement(videoElement, (result, error) => {
                     if (result) {
@@ -63,7 +55,12 @@
                     }
                 }, {
                     tryHarder: true,
-                    formats: formats
+                    formats: [
+                        ZXing.BarcodeFormat.QR_CODE,
+                        ZXing.BarcodeFormat.CODE_128,
+                        ZXing.BarcodeFormat.EAN_13,
+                        ZXing.BarcodeFormat.UPC_A
+                    ]
                 });
 
             } catch (error) {
