@@ -60,14 +60,20 @@
                 activeStream = stream;
                 VIDEO.srcObject = stream;
                 
-                VIDEO.addEventListener('playing', () => {
-                    log('Video playback started');
-                    startScanning();
-                });
+                // Wait for video to be ready
+                VIDEO.onloadedmetadata = () => {
+                    log('Video metadata loaded');
+                    VIDEO.play().then(() => {
+                        log('Video playback started');
+                        startScanning();
+                    }).catch(error => {
+                        handleError(new Error(`Video playback failed: ${error.message}`));
+                    });
+                };
 
-                VIDEO.addEventListener('error', (error) => {
+                VIDEO.onerror = (error) => {
                     handleError(new Error(`Video error: ${error.message}`));
-                });
+                };
 
             } catch (error) {
                 handleError(error);
@@ -80,6 +86,14 @@
                 scanActive = true;
             }
 
+            // Ensure video is ready
+            if (!VIDEO.videoWidth || !VIDEO.videoHeight) {
+                log('Video not ready, retrying...');
+                setTimeout(startScanning, 100);
+                return;
+            }
+
+            // Start decoding
             codeReader.decodeFromStream(activeStream, VIDEO, (result, error) => {
                 if (!scanActive) return;
 
@@ -98,6 +112,8 @@
                     // No result but no error - continue scanning
                     requestAnimationFrame(() => startScanning());
                 }
+            }).catch(error => {
+                handleError(new Error(`Decoding failed: ${error.message}`));
             });
         }
 
