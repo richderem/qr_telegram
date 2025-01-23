@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scan Barcode/QR Code</title>
-    <script src="https://unpkg.com/@zxing/library@0.19.1"></script>
+    <title>Barcode/QR Scanner</title>
+    <script src="https://unpkg.com/@zxing/library@0.21.3"></script>
 </head>
 <body>
     <h1>Scan Barcode/QR Code</h1>
@@ -18,10 +18,9 @@
         const scanButton = document.getElementById('scan-button');
 
         const codeReader = new ZXing.BrowserMultiFormatReader();
-        let videoStream = null;
-        let isScanning = false;
+        let activeStream = null;
 
-        // Supported barcode formats
+        // Supported formats
         const formats = [
             ZXing.BarcodeFormat.QR_CODE,
             ZXing.BarcodeFormat.CODE_128,
@@ -32,77 +31,59 @@
 
         async function startScanning() {
             try {
-                if (isScanning) return;
-
-                // Stop existing stream
-                if (videoStream) {
-                    videoStream.getTracks().forEach(track => track.stop());
-                    videoStream = null;
+                // Stop previous session
+                if (activeStream) {
+                    activeStream.getTracks().forEach(track => track.stop());
                 }
 
-                // Request camera access
-                videoStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
+                // Get camera stream
+                activeStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
                         facingMode: 'environment',
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 }
-                    } 
+                        focusMode: 'continuous'
+                    }
                 });
 
-                videoElement.srcObject = videoStream;
+                videoElement.srcObject = activeStream;
                 await videoElement.play();
 
-                // Start scanning with hints
-                isScanning = true;
+                // Start decoding
                 scanButton.textContent = 'Stop Scanning';
-                console.log("Starting scan...");
+                console.log('ZXing version:', ZXing.VERSION);
 
-                codeReader.decodeFromVideoElement(
-                    videoElement,
-                    (result, error) => {
-                        if (error) {
-                            console.error("Decoding error:", error);
-                            return;
-                        }
-
-                        if (result) {
-                            console.log("Scanned:", result.text);
-                            resultElement.textContent = `Scanned: ${result.text}`;
-                            Telegram.WebApp.sendData(result.text);
-                            stopScanning();
-                        }
-                    },
-                    {
-                        // Pass hints directly as an object
-                        hints: new Map([
-                            [ZXing.DecodeHintType.POSSIBLE_FORMATS, formats]
-                        ])
+                codeReader.decodeFromVideoElement(videoElement, (result, error) => {
+                    if (result) {
+                        console.log('Decoded:', result.text);
+                        resultElement.textContent = result.text;
+                        Telegram.WebApp.sendData(result.text);
+                        stopScanning();
                     }
-                );
+                    if (error) {
+                        console.error('Decoding error:', error);
+                    }
+                }, {
+                    tryHarder: true,
+                    formats: formats
+                });
 
             } catch (error) {
-                console.error("Camera error:", error);
+                console.error('Camera error:', error);
                 resultElement.textContent = `Error: ${error.message}`;
-                stopScanning();
             }
         }
 
         function stopScanning() {
-            if (videoStream) {
-                videoStream.getTracks().forEach(track => track.stop());
-                videoStream = null;
+            if (activeStream) {
+                activeStream.getTracks().forEach(track => track.stop());
+                activeStream = null;
             }
-            if (codeReader) {
-                codeReader.reset();
-            }
+            codeReader.reset();
             videoElement.srcObject = null;
-            isScanning = false;
             scanButton.textContent = 'Start Scanning';
-            console.log("Scanning stopped");
         }
 
         scanButton.addEventListener('click', () => {
-            if (isScanning) {
+            if (activeStream) {
                 stopScanning();
             } else {
                 startScanning();
