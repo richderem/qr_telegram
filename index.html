@@ -72,29 +72,49 @@
             }
         }
 
-        // Start scanning process
-        function startScanning(codeReader) {
-            STATUS.textContent = 'Scanning...';
-            scanActive = true;
-            
-            const decodeCallback = (result, error) => {
-                if (!scanActive) return;
-                
-                if (result) {
-                    handleResult(result.text);
-                    return;
+        async function startScanning(codeReader) {
+            try {
+                if (isScanning) return;
+
+                // Stop any existing stream
+                if (videoStream) {
+                    videoStream.getTracks().forEach(track => track.stop());
+                    videoStream = null;
                 }
-                
-                if (error) {
-                    if (!(error instanceof ZXing.NotFoundException)) {
-                        log(`Scan error: ${error.message}`);
+
+                // Request camera access
+                videoStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment' // Use the rear camera
+                    } 
+                });
+
+                // Attach stream to video element
+                videoElement.srcObject = videoStream;
+                await videoElement.play();
+
+                // Start scanning
+                isScanning = true;
+                scanButton.textContent = 'Stop Scanning';
+
+                // Use decodeFromStream to scan
+                codeReader.decodeFromStream(videoStream, videoElement, (result) => {
+                    if (result) {
+                        resultElement.textContent = `Scanned: ${result.text}`;
+
+                        // Send the scanned data back to Telegram
+                        Telegram.WebApp.sendData(result.text);
+
+                        // Close the Mini App
+                        //Telegram.WebApp.close();
                     }
-                    requestAnimationFrame(() => codeReader.decodeFromVideoElement(VIDEO, decodeCallback));
-                }
-            };
-            
-            log('Starting decoding process');
-            codeReader.decodeFromVideoElement(VIDEO, decodeCallback);
+                });
+
+            } catch (error) {
+                console.error("Error:", error);
+                resultElement.textContent = `Error: ${error.message}`;
+                stopScanning();
+            }
         }
 
         // Handle scan results
