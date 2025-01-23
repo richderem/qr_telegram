@@ -17,7 +17,8 @@
         const resultElement = document.getElementById('result');
         const scanButton = document.getElementById('scan-button');
 
-        const codeReader = new ZXing.BrowserQRCodeReader();
+        // Use BrowserMultiFormatReader instead of BrowserQRCodeReader
+        const codeReader = new ZXing.BrowserMultiFormatReader();
         let videoStream = null;
         let isScanning = false;
 
