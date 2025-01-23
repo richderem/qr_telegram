@@ -17,39 +17,53 @@
         const resultElement = document.getElementById('result');
         const scanButton = document.getElementById('scan-button');
 
-        const codeReader = new ZXing.BrowserQRCodeReader();
+        // Use MultiFormatReader for barcodes + QR codes
+        const codeReader = new ZXing.BrowserMultiFormatReader();
         let videoStream = null;
         let isScanning = false;
+
+        // Supported barcode formats
+        const formats = [
+            ZXing.BarcodeFormat.QR_CODE,
+            ZXing.BarcodeFormat.CODE_128,
+            ZXing.BarcodeFormat.EAN_13,
+            ZXing.BarcodeFormat.UPC_A,
+            ZXing.BarcodeFormat.CODE_39
+        ];
 
         async function startScanning() {
             try {
                 if (isScanning) return;
 
-                // Stop any existing stream
+                // Stop existing stream
                 if (videoStream) {
                     videoStream.getTracks().forEach(track => track.stop());
                     videoStream = null;
                 }
 
-                // Request camera access
+                // Request camera with higher resolution
                 videoStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
                         facingMode: 'environment',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
                     } 
                 });
 
-                // Attach stream to video element
                 videoElement.srcObject = videoStream;
                 await videoElement.play();
+
+                // Configure scanner for barcode formats
+                codeReader.hints.set(
+                    ZXing.DecodeHintType.POSSIBLE_FORMATS, 
+                    formats
+                );
 
                 // Start scanning
                 isScanning = true;
                 scanButton.textContent = 'Stop Scanning';
                 console.log("Starting scan...");
 
-                // Use decodeFromVideoElement instead of decodeFromStream
                 codeReader.decodeFromVideoElement(videoElement, (result, error) => {
                     if (error) {
                         console.error("Decoding error:", error);
@@ -57,7 +71,7 @@
                     }
 
                     if (result) {
-                        console.log("Scanned result:", result.text);
+                        console.log("Scanned:", result.text);
                         resultElement.textContent = `Scanned: ${result.text}`;
                         Telegram.WebApp.sendData(result.text);
                         stopScanning();
