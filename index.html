@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scan Barcode/QR Code</title>
-    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <script src="https://unpkg.com/@zxing/library@0.19.1"></script>
 </head>
 <body>
     <h1>Scan Barcode/QR Code</h1>
@@ -18,40 +18,79 @@
         const scanButton = document.getElementById('scan-button');
 
         const codeReader = new ZXing.BrowserQRCodeReader();
-        let videoStream = null; // Store the video stream globally
+        let videoStream = null;
+        let isScanning = false;
 
-        scanButton.addEventListener('click', async () => {
+        async function startScanning() {
             try {
-                // Stop the previous stream if it exists
+                if (isScanning) return;
+
+                // Stop any existing stream
                 if (videoStream) {
                     videoStream.getTracks().forEach(track => track.stop());
+                    videoStream = null;
                 }
 
                 // Request camera access
-                videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                });
+
+                // Attach stream to video element
                 videoElement.srcObject = videoStream;
-                videoElement.play();
+                await videoElement.play();
 
                 // Start scanning
-                const result = await codeReader.decodeFromVideoDevice(null, videoElement, (result) => {
-                    if (result) {
-                        resultElement.textContent = `Scanned: ${result.text}`;
-                        Telegram.WebApp.sendData(result.text); // Send data back to the bot
+                isScanning = true;
+                scanButton.textContent = 'Stop Scanning';
+                console.log("Starting scan...");
 
-                        // Stop the stream after scanning
-                        videoStream.getTracks().forEach(track => track.stop());
+                // Use decodeFromVideoElement instead of decodeFromStream
+                codeReader.decodeFromVideoElement(videoElement, (result, error) => {
+                    if (error) {
+                        console.error("Decoding error:", error);
+                        return;
+                    }
+
+                    if (result) {
+                        console.log("Scanned result:", result.text);
+                        resultElement.textContent = `Scanned: ${result.text}`;
+                        Telegram.WebApp.sendData(result.text);
+                        stopScanning();
                     }
                 });
-            } catch (error) {
-                console.error("Error accessing the camera: ", error);
-                resultElement.textContent = `Error: ${error.message}`;
-            }
-        });
 
-        // Handle video playback errors
-        videoElement.addEventListener('error', (error) => {
-            console.error("Video playback error: ", error);
-            resultElement.textContent = `Video playback error: ${error.message}`;
+            } catch (error) {
+                console.error("Camera error:", error);
+                resultElement.textContent = `Error: ${error.message}`;
+                stopScanning();
+            }
+        }
+
+        function stopScanning() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+            if (codeReader) {
+                codeReader.reset();
+            }
+            videoElement.srcObject = null;
+            isScanning = false;
+            scanButton.textContent = 'Start Scanning';
+            console.log("Scanning stopped");
+        }
+
+        scanButton.addEventListener('click', () => {
+            if (isScanning) {
+                stopScanning();
+            } else {
+                startScanning();
+            }
         });
     </script>
 </body>
