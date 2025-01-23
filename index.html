@@ -3,91 +3,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scan Barcode/QR Code</title>
+    <title>Barcode/QR Scanner</title>
     <script src="https://unpkg.com/@zxing/library@latest"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #000;
+            color: white;
+        }
+        #scanner-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            overflow: hidden;
+        }
+        #scanner-video {
+            width: 100%;
+            height: auto;
+        }
+        #scan-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 70%;
+            height: 30%;
+            border: 4px solid #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+        }
+        #status {
+            padding: 1rem;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
-    <h1>Scan Barcode/QR Code</h1>
-    <button id="scan-button">Start Scanning</button>
-    <video id="scanner-video" autoplay playsinline style="width: 100%; max-width: 500px;"></video>
-    <p id="result"></p>
+    <div id="scanner-container">
+        <video id="scanner-video" autoplay playsinline></video>
+        <div id="scan-overlay"></div>
+    </div>
+    <div id="status">Initializing scanner...</div>
 
     <script>
-        const videoElement = document.getElementById('scanner-video');
-        const resultElement = document.getElementById('result');
-        const scanButton = document.getElementById('scan-button');
-
         const codeReader = new ZXing.BrowserMultiFormatReader();
-        let videoStream = null;
+        const videoElement = document.getElementById('scanner-video');
+        const statusElement = document.getElementById('status');
         let isScanning = false;
-
+        let lastScanTime = 0;
+        let lastScanResult = '';
+        
         // Initialize Telegram Web App
         Telegram.WebApp.ready();
+        Telegram.WebApp.expand();
+
+        // Start scanning automatically
+        document.addEventListener('DOMContentLoaded', startScanning);
 
         async function startScanning() {
             try {
                 if (isScanning) return;
+                isScanning = true;
 
-                // Stop any existing stream
-                if (videoStream) {
-                    videoStream.getTracks().forEach(track => track.stop());
-                    videoStream = null;
+                // Check camera availability
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Camera API not supported');
                 }
 
-                // Request camera access
-                videoStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        facingMode: 'environment' // Use the rear camera
-                    } 
+                // Get camera stream
+                const videoConstraints = {
+                    facingMode: 'environment',
+                    focusMode: 'continuous',
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                };
+
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: videoConstraints
                 });
 
-                // Attach stream to video element
-                videoElement.srcObject = videoStream;
+                videoElement.srcObject = stream;
                 await videoElement.play();
+                statusElement.textContent = 'Scanning...';
 
-                // Start scanning
-                isScanning = true;
-                scanButton.textContent = 'Stop Scanning';
+                // Configure decoder
+                codeReader.timeBetweenScans = 1000;
+                codeReader.decodeFromVideoElement(videoElement, (result, error) => {
+                    if (error) {
+                        if (error.name !== 'NotFoundException') {
+                            console.error('Scan error:', error);
+                        }
+                        return;
+                    }
 
-                // Use decodeFromStream to scan
-                codeReader.decodeFromStream(videoStream, videoElement, (result) => {
                     if (result) {
-                        resultElement.textContent = `Scanned: ${result.text}`;
-
-                        // Send the scanned data back to Telegram
-                        Telegram.WebApp.sendData(result.text);
-
-                        // Close the Mini App
-                        //Telegram.WebApp.close();
+                        handleScanResult(result.text);
                     }
                 });
 
             } catch (error) {
-                console.error("Error:", error);
-                resultElement.textContent = `Error: ${error.message}`;
+                statusElement.textContent = `Error: ${error.message}`;
+                console.error('Scanner initialization failed:', error);
                 stopScanning();
             }
+        }
+
+        function handleScanResult(result) {
+            const now = Date.now();
+            
+            // Debounce scans and check confidence
+            if (now - lastScanTime < 2000 && result === lastScanResult) {
+                return;
+            }
+
+            lastScanTime = now;
+            lastScanResult = result;
+
+            // Visual feedback
+            statusElement.textContent = `Detected: ${result}`;
+            
+            // Send result to Telegram
+            Telegram.WebApp.sendData(result);
+            
+            // Close scanner after short delay
+            setTimeout(() => {
+                Telegram.WebApp.close();
+            }, 500);
         }
 
         function stopScanning() {
-            if (videoStream) {
-                videoStream.getTracks().forEach(track => track.stop());
-                videoStream = null;
+            if (videoElement.srcObject) {
+                videoElement.srcObject.getTracks().forEach(track => track.stop());
+                videoElement.srcObject = null;
             }
-            videoElement.srcObject = null;
             isScanning = false;
-            scanButton.textContent = 'Start Scanning';
+            codeReader.reset();
         }
 
-        // Toggle scanning
-        scanButton.addEventListener('click', () => {
-            if (isScanning) {
-                stopScanning();
-            } else {
-                startScanning();
-            }
-        });
+        // Cleanup when closing
+        window.addEventListener('beforeunload', stopScanning);
     </script>
 </body>
 </html>
