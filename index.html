@@ -17,7 +17,6 @@
         const resultElement = document.getElementById('result');
         const scanButton = document.getElementById('scan-button');
 
-        // Use MultiFormatReader for barcodes + QR codes
         const codeReader = new ZXing.BrowserMultiFormatReader();
         let videoStream = null;
         let isScanning = false;
@@ -31,10 +30,6 @@
             ZXing.BarcodeFormat.CODE_39
         ];
 
-        // Define decoding hints
-        const hints = new ZXing.DecodeHintMap();
-        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-
         async function startScanning() {
             try {
                 if (isScanning) return;
@@ -45,7 +40,7 @@
                     videoStream = null;
                 }
 
-                // Request camera with higher resolution
+                // Request camera access
                 videoStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
                         facingMode: 'environment',
@@ -77,7 +72,12 @@
                             stopScanning();
                         }
                     },
-                    { hints } // Pass hints here
+                    {
+                        // Pass hints directly as an object
+                        hints: new Map([
+                            [ZXing.DecodeHintType.POSSIBLE_FORMATS, formats]
+                        ])
+                    }
                 );
 
             } catch (error) {
