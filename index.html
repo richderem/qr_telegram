@@ -19,25 +19,37 @@
 
         const codeReader = new ZXing.BrowserMultiFormatReader();
         let activeStream = null;
+        let isScanning = false;
 
         async function startScanning() {
+            if (isScanning) return;
+            isScanning = true;
+            
             try {
                 // Stop previous session
                 if (activeStream) {
                     activeStream.getTracks().forEach(track => track.stop());
+                    activeStream = null;
+                    await new Promise(resolve => setTimeout(resolve, 500)); // Add small delay
                 }
 
                 // Get camera stream
                 activeStream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        facingMode: 'environment', // Use rear camera
-                        width: { ideal: 1280 },    // Force higher resolution
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
                         height: { ideal: 720 }
                     }
                 });
 
+                // Reset video element
+                videoElement.srcObject = null;
                 videoElement.srcObject = activeStream;
-                await videoElement.play();
+                
+                // Wait for video to be ready
+                await new Promise((resolve) => {
+                    videoElement.onloadedmetadata = resolve;
+                });
 
                 // Start decoding
                 scanButton.textContent = 'Stop Scanning';
@@ -50,7 +62,7 @@
                         Telegram.WebApp.sendData(result.text);
                         stopScanning();
                     }
-                    if (error) {
+                    if (error && !error.message.includes("NotFoundException")) {
                         console.error('Decoding error:', error);
                     }
                 }, {
@@ -66,10 +78,12 @@
             } catch (error) {
                 console.error('Camera error:', error);
                 resultElement.textContent = `Error: ${error.message}`;
+                stopScanning();
             }
         }
 
         function stopScanning() {
+            isScanning = false;
             if (activeStream) {
                 activeStream.getTracks().forEach(track => track.stop());
                 activeStream = null;
@@ -80,7 +94,7 @@
         }
 
         scanButton.addEventListener('click', () => {
-            if (activeStream) {
+            if (isScanning) {
                 stopScanning();
             } else {
                 startScanning();
