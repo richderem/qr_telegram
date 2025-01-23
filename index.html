@@ -22,6 +22,9 @@
         let videoStream = null;
         let isScanning = false;
 
+        // Initialize Telegram Web App
+        Telegram.WebApp.ready();
+
         async function startScanning() {
             try {
                 if (isScanning) return;
@@ -47,7 +50,7 @@
                 isScanning = true;
                 scanButton.textContent = 'Stop Scanning';
 
-                // Use decodeFromStream instead of decodeFromVideoDevice
+                // Use decodeFromStream to scan
                 codeReader.decodeFromStream(videoStream, videoElement, (result) => {
                     if (result) {
                         resultElement.textContent = `Scanned: ${result.text}`;
@@ -55,8 +58,8 @@
                         // Send the scanned data back to Telegram
                         Telegram.WebApp.sendData(result.text);
 
-                        // Stop scanning after a successful scan
-                        stopScanning();
+                        // Close the Mini App
+                        Telegram.WebApp.close();
                     }
                 });
 
