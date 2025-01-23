@@ -18,12 +18,18 @@
         const scanButton = document.getElementById('scan-button');
 
         const codeReader = new ZXing.BrowserQRCodeReader();
+        let videoStream = null; // Store the video stream globally
 
         scanButton.addEventListener('click', async () => {
             try {
+                // Stop the previous stream if it exists
+                if (videoStream) {
+                    videoStream.getTracks().forEach(track => track.stop());
+                }
+
                 // Request camera access
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                videoElement.srcObject = stream;
+                videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoElement.srcObject = videoStream;
                 videoElement.play();
 
                 // Start scanning
@@ -31,12 +37,21 @@
                     if (result) {
                         resultElement.textContent = `Scanned: ${result.text}`;
                         Telegram.WebApp.sendData(result.text); // Send data back to the bot
+
+                        // Stop the stream after scanning
+                        videoStream.getTracks().forEach(track => track.stop());
                     }
                 });
             } catch (error) {
                 console.error("Error accessing the camera: ", error);
                 resultElement.textContent = `Error: ${error.message}`;
             }
+        });
+
+        // Handle video playback errors
+        videoElement.addEventListener('error', (error) => {
+            console.error("Video playback error: ", error);
+            resultElement.textContent = `Video playback error: ${error.message}`;
         });
     </script>
 </body>
