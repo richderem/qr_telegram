@@ -29,6 +29,7 @@
         let activeStream = null;
         let scanActive = false;
         let lastScan = 0;
+        let codeReader = null;
 
         // Debug logging
         function log(message) {
@@ -44,7 +45,7 @@
                 Telegram.WebApp.expand();
                 
                 log('Creating ZXing reader');
-                const codeReader = new ZXing.BrowserMultiFormatReader();
+                codeReader = new ZXing.BrowserMultiFormatReader();
                 
                 log('Requesting camera access');
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -59,62 +60,45 @@
                 activeStream = stream;
                 VIDEO.srcObject = stream;
                 
-                VIDEO.onloadedmetadata = () => {
-                    log('Video metadata loaded');
-                    VIDEO.play().then(() => {
-                        log('Video playback started');
-                        startScanning(codeReader);
-                    });
-                };
+                VIDEO.addEventListener('playing', () => {
+                    log('Video playback started');
+                    startScanning();
+                });
+
+                VIDEO.addEventListener('error', (error) => {
+                    handleError(new Error(`Video error: ${error.message}`));
+                });
 
             } catch (error) {
                 handleError(error);
             }
         }
 
-        async function startScanning(codeReader) {
-            try {
-                if (isScanning) return;
+        function startScanning() {
+            if (!scanActive) {
+                STATUS.textContent = 'Scanning...';
+                scanActive = true;
+            }
 
-                // Stop any existing stream
-                if (videoStream) {
-                    videoStream.getTracks().forEach(track => track.stop());
-                    videoStream = null;
+            codeReader.decodeFromStream(activeStream, VIDEO, (result, error) => {
+                if (!scanActive) return;
+
+                if (result) {
+                    handleResult(result.text);
+                    return;
                 }
 
-                // Request camera access
-                videoStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        facingMode: 'environment' // Use the rear camera
-                    } 
-                });
-
-                // Attach stream to video element
-                videoElement.srcObject = videoStream;
-                await videoElement.play();
-
-                // Start scanning
-                isScanning = true;
-                scanButton.textContent = 'Stop Scanning';
-
-                // Use decodeFromStream to scan
-                codeReader.decodeFromStream(videoStream, videoElement, (result) => {
-                    if (result) {
-                        resultElement.textContent = `Scanned: ${result.text}`;
-
-                        // Send the scanned data back to Telegram
-                        Telegram.WebApp.sendData(result.text);
-
-                        // Close the Mini App
-                        //Telegram.WebApp.close();
+                if (error) {
+                    if (!(error instanceof ZXing.NotFoundException)) {
+                        log(`Scan error: ${error.message}`);
                     }
-                });
-
-            } catch (error) {
-                console.error("Error:", error);
-                resultElement.textContent = `Error: ${error.message}`;
-                stopScanning();
-            }
+                    // Continue scanning
+                    requestAnimationFrame(() => startScanning());
+                } else {
+                    // No result but no error - continue scanning
+                    requestAnimationFrame(() => startScanning());
+                }
+            });
         }
 
         // Handle scan results
@@ -152,6 +136,10 @@
                     log(`Stopped track: ${track.kind}`);
                 });
                 activeStream = null;
+            }
+            
+            if (codeReader) {
+                codeReader.reset();
             }
         }
 
