@@ -24,13 +24,12 @@
         async function startScanning() {
             if (isScanning) return;
             isScanning = true;
-            
+
             try {
                 // Stop previous session
                 if (activeStream) {
                     activeStream.getTracks().forEach(track => track.stop());
                     activeStream = null;
-                    await new Promise(resolve => setTimeout(resolve, 500)); // Add small delay
                 }
 
                 // Get camera stream
@@ -42,14 +41,9 @@
                     }
                 });
 
-                // Reset video element
-                videoElement.srcObject = null;
+                // Attach stream to video element
                 videoElement.srcObject = activeStream;
-                
-                // Wait for video to be ready
-                await new Promise((resolve) => {
-                    videoElement.onloadedmetadata = resolve;
-                });
+                await videoElement.play();
 
                 // Start decoding
                 scanButton.textContent = 'Stop Scanning';
