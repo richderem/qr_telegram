@@ -9,7 +9,7 @@
 <body>
     <h1>Scan Barcode/QR Code</h1>
     <button id="scan-button">Start Scanning</button>
-    <video id="scanner-video" style="display: none;"></video>
+    <video id="scanner-video" autoplay playsinline style="width: 100%; max-width: 500px;"></video>
     <p id="result"></p>
 
     <script>
@@ -21,6 +21,12 @@
 
         scanButton.addEventListener('click', async () => {
             try {
+                // Request camera access
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoElement.srcObject = stream;
+                videoElement.play();
+
+                // Start scanning
                 const result = await codeReader.decodeFromVideoDevice(null, videoElement, (result) => {
                     if (result) {
                         resultElement.textContent = `Scanned: ${result.text}`;
@@ -28,6 +34,7 @@
                     }
                 });
             } catch (error) {
+                console.error("Error accessing the camera: ", error);
                 resultElement.textContent = `Error: ${error.message}`;
             }
         });
