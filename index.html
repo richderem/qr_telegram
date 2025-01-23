@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Barcode/QR Scanner</title>
-    <script src="https://unpkg.com/@zxing/library@0.21.3"></script>
+    <title>Scan Barcode/QR Code</title>
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
 </head>
 <body>
     <h1>Scan Barcode/QR Code</h1>
@@ -17,76 +17,62 @@
         const resultElement = document.getElementById('result');
         const scanButton = document.getElementById('scan-button');
 
-        const codeReader = new ZXing.BrowserMultiFormatReader();
-        let activeStream = null;
+        const codeReader = new ZXing.BrowserQRCodeReader();
+        let videoStream = null;
         let isScanning = false;
 
         async function startScanning() {
-            if (isScanning) return;
-            isScanning = true;
-
             try {
-                // Stop previous session
-                if (activeStream) {
-                    activeStream.getTracks().forEach(track => track.stop());
-                    activeStream = null;
+                if (isScanning) return;
+
+                // Stop any existing stream
+                if (videoStream) {
+                    videoStream.getTracks().forEach(track => track.stop());
+                    videoStream = null;
                 }
 
-                // Get camera stream
-                activeStream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: 'environment',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
+                // Request camera access
+                videoStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment' // Use the rear camera
+                    } 
                 });
 
                 // Attach stream to video element
-                videoElement.srcObject = activeStream;
+                videoElement.srcObject = videoStream;
                 await videoElement.play();
 
-                // Start decoding
+                // Start scanning
+                isScanning = true;
                 scanButton.textContent = 'Stop Scanning';
-                console.log('ZXing initialized');
 
-                codeReader.decodeFromVideoElement(videoElement, (result, error) => {
+                // Use decodeFromStream instead of decodeFromVideoDevice
+                codeReader.decodeFromStream(videoStream, videoElement, (result) => {
                     if (result) {
-                        console.log('Decoded:', result.text);
-                        resultElement.textContent = result.text;
+                        resultElement.textContent = `Scanned: ${result.text}`;
                         Telegram.WebApp.sendData(result.text);
                         stopScanning();
                     }
-                    if (error && !error.message.includes("NotFoundException")) {
-                        console.error('Decoding error:', error);
-                    }
-                }, {
-                    tryHarder: true,
-                    formats: [
-                        ZXing.BarcodeFormat.QR_CODE,
-                        ZXing.BarcodeFormat.CODE_128,
-                        ZXing.BarcodeFormat.EAN_13,
-                        ZXing.BarcodeFormat.UPC_A
-                    ]
                 });
 
             } catch (error) {
-                console.error('Camera error:', error);
+                console.error("Error:", error);
                 resultElement.textContent = `Error: ${error.message}`;
                 stopScanning();
             }
         }
 
         function stopScanning() {
-            isScanning = false;
-            if (activeStream) {
-                activeStream.getTracks().forEach(track => track.stop());
-                activeStream = null;
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
             }
-            codeReader.reset();
             videoElement.srcObject = null;
+            isScanning = false;
             scanButton.textContent = 'Start Scanning';
         }
 
+        // Toggle scanning
         scanButton.addEventListener('click', () => {
             if (isScanning) {
                 stopScanning();
