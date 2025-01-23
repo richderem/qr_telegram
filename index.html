@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan Barcode/QR Code</title>
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
+</head>
+<body>
+    <h1>Scan Barcode/QR Code</h1>
+    <button id="scan-button">Start Scanning</button>
+    <video id="scanner-video" style="display: none;"></video>
+    <p id="result"></p>
+
+    <script>
+        const videoElement = document.getElementById('scanner-video');
+        const resultElement = document.getElementById('result');
+        const scanButton = document.getElementById('scan-button');
+
+        const codeReader = new ZXing.BrowserQRCodeReader();
+
+        scanButton.addEventListener('click', async () => {
+            try {
+                const result = await codeReader.decodeFromVideoDevice(null, videoElement, (result) => {
+                    if (result) {
+                        resultElement.textContent = `Scanned: ${result.text}`;
+                        Telegram.WebApp.sendData(result.text); // Send data back to the bot
+                    }
+                });
+            } catch (error) {
+                resultElement.textContent = `Error: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>
